@@ -2,13 +2,13 @@ const mineflayer = require('mineflayer');
 const { mineflayer: mineflayerViewer } = require('prismarine-viewer');
 const { pathfinder, Movements, goals: { GoalXZ, GoalGetToBlock, GoalNear, GoalLookAtBlock } } = require('mineflayer-pathfinder');
 const Vec3 = require('vec3').Vec3
-const SEARCH_DISTANCE = 100;
+const SEARCH_DISTANCE = 1;
 
 const bot = mineflayer.createBot({
 	host: '192.168.1.88', // minecraft server ip
 	username: 'Lucia', // minecraft username
 	// password: '12345678' // minecraft password, comment out if you want to log into online-mode=false servers
-	port: 50206,                // only set if you need a port that isn't 25565
+	port: 64146,                // only set if you need a port that isn't 25565
 	// version: false,             // only set if you need a specific version or snapshot (ie: "1.8.9" or "1.16.5"), otherwise it's set automatically
 	// auth: 'mojang'              // only set if you need microsoft auth, then set this to 'microsoft'
 });
@@ -19,9 +19,7 @@ var mcData;
 bot.once('spawn', () => {
 	mineflayerViewer(bot, { port: 3007, firstPerson: true }) // port is the minecraft server port, if first person is false, you get a bird's-eye view
 	mcData = require('minecraft-data')(bot.version);
-
 	bot.statusData = {};
-
 });
 
 
@@ -34,7 +32,7 @@ let commandHandler = async (username, message) => {
 	
 	switch (commands[0]) {
 		case 'come':
-			// botGoToUser(username);
+			botGoToUser(username);
 			break;
 		case 'find':
 			
@@ -113,15 +111,8 @@ async function checkChestFor(chestPosition, blockName) {
 	if (chestBlock.name !== "chest") return console.warn(`Specified block is not a chest type (found ${chestBlock.name})`);
 
 	// We walk to the chest (to be able to open it)
-	botWalkTo(chestPosition);
+	await asyncBotWalkTo(chestPosition);
 
-	// Helper promise to make the code wait until our bot reaches it's destination
-	let botArrivedToChest = async () => {
-		return new Promise((resolve, reject)=>{
-			bot.once('goal_reached', resolve);
-		});
-	}
-	await botArrivedToChest();
 
 	// Bot Should be at the chest
 	let chest = await bot.openChest(chestBlock);
@@ -165,12 +156,12 @@ async function retrieveBlockFromChest(blockName, quantity) {
 	return false;
 }
 
+
+// TODO: This is suposed to be a generic function for "blocks" but it's specific to trees :((
 async function gatherBlock(blockName, quantity) {
 	// Store blocks on variable accesible to our callback
 	let blocksPos = getBlocks(blockName, 100);
 	
-
-	console.log(blocksPos);
 
 	// If there is not a block we try to find it
 	if (!blocksPos[0]) {
@@ -183,12 +174,22 @@ async function gatherBlock(blockName, quantity) {
 		// We send the bot the block we are trying to find
 		await asyncBotWalkTo(blocksPos[0]);
 		await cutDownTree(blocksPos[0]);
-		// TODO: Cut Down Tree must pick up entities after cutting down all the leaves
-		// TODO: Stop collecting blocks once we have all required items
-		// TODO: This is suposed to be a generic function for "blocks" but it's specific to trees :((
+
+		let targetBlockQuantity = 0;
+		bot.inventory.items().forEach(item => {
+			if (item.name == blockName)
+				targetBlockQuantity += item.count;
+		});
+
+		if (targetBlockQuantity >= quantity) {
+			blocksPos[0] = undefined;
+			continue;
+		}
+
+
 		blocksPos.splice(0, 1);
-		console.log("BlockPost after cutting down the tree", blocksPos[0]);
 	}
+	console.log("BlockPost after cutting down the tree", blocksPos[0]);
 
 	return;
 }
@@ -198,6 +199,7 @@ async function gatherBlock(blockName, quantity) {
  * 
  * @param {Vec3} treePos Position of a log block of the tree we want to cut down
  * @returns 
+ * // TODO: Cut Down Tree must pick up entities after cutting down all the leaves
  */
 async function cutDownTree(treePos) {
 	// Make sure the block IS a log (tree)
@@ -264,7 +266,6 @@ async function cutDownTree(treePos) {
 		// Select the next block and try to destroy it
 		let nextLeave = bot.blockAt(treeLeaves[0]);
 		treeLeaves.splice(0, 1);
-		console.log(nextLeave);
 		if (!nextLeave.name.includes("leaves")) continue;
 		if (!bot.canDigBlock(nextLeave)) {
 			await asyncBotWalkTo(nextLeave.position);
@@ -291,24 +292,6 @@ async function asyncBotWalkTo( blockToWalkTo ) {
 	});
 }
 
-
-function botWalkTo( blockToWalkTo, pathUpdatedCallback = undefined ) {
-	if (!blockToWalkTo) return console.warn("No more blocks to go to!");
-	
-	let { x: blockX, y: blockY, z: blockZ } = blockToWalkTo;
-
-	let defaultMove          = new Movements(bot, mcData);
-	defaultMove.canDig       = true;
-	defaultMove.allowParkour = true;
-	bot.pathfinder.setMovements(defaultMove);
-	bot.pathfinder.setGoal(new GoalGetToBlock(blockX, blockY, blockZ));
-	
-	if (pathUpdatedCallback) {
-		bot.once('path_update', (update) => {
-			pathUpdatedCallback(update)
-		});
-	}
-}
 
 
 function getBlocks(blockNames, count) {
