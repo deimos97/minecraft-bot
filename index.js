@@ -1,19 +1,21 @@
 const mineflayer = require('mineflayer');
 const { mineflayer: mineflayerViewer } = require('prismarine-viewer');
-const { pathfinder, Movements, goals: { GoalXZ, GoalGetToBlock, GoalNear, GoalLookAtBlock } } = require('mineflayer-pathfinder');
 const Vec3 = require('vec3').Vec3
-const SEARCH_DISTANCE = 1;
 
 const bot = mineflayer.createBot({
-	host: '192.168.1.88', // minecraft server ip
+	//host: '192.168.1.88', // minecraft server ip
+	host: 'localhost', // minecraft server ip
 	username: 'Lucia', // minecraft username
 	// password: '12345678' // minecraft password, comment out if you want to log into online-mode=false servers
-	port: 64146,                // only set if you need a port that isn't 25565
+	port: 51280,                // only set if you need a port that isn't 25565
 	// version: false,             // only set if you need a specific version or snapshot (ie: "1.8.9" or "1.16.5"), otherwise it's set automatically
 	// auth: 'mojang'              // only set if you need microsoft auth, then set this to 'microsoft'
 });
 
-bot.loadPlugin(pathfinder);
+const {asyncBotWalkTo, asyncBotLookTo, botGoToUser, botRadialSearch} = require("./movement.js")(bot);
+const {getBlocks} = require("./blocks.js")(bot);
+
+
 
 var mcData;
 bot.once('spawn', () => {
@@ -27,7 +29,7 @@ let commandHandler = async (username, message) => {
 	if (username !== 'Varela04') return;
 
 	if (!message.includes("bot")) return;
-	message = message.replace("bot", "").trim().toLowerCase();
+	message  = message.replace("bot", "").trim().toLowerCase();
 	commands = message.split(' ');
 	
 	switch (commands[0]) {
@@ -63,6 +65,13 @@ let commandHandler = async (username, message) => {
 		case 'moveforward':
 			botForward();
 			break;
+		case 'collect':
+			let blockToCollect = commands[1];
+			if (!blockToCollect) return bot.chat('What block do you want me to collect master?');
+
+			let checkerFunction = (block) => block.name === blockToCollect;
+			collectBlock(checkerFunction);
+			break;
 		default:
 			bot.chat('I don\'t know what you want master');
 			break;
@@ -75,6 +84,69 @@ function botForward() {
 	
 	bot.setControlState('forward', true);
 	setTimeout(() => {bot.setControlState('forward', false);}, 1000);
+}
+
+
+/**
+ * 
+ * @param {function} checkerFunction Function that identifies the blocks that need to be gathered
+ * @returns {boolean}
+ */
+async function collectBlock(checkerFunction) {
+
+	let droppedItems = findBlockEntities(checkerFunction);
+	
+	if (!droppedItems.length) {
+		bot.chat("All tiems have been picked up!");
+		return true;
+	}
+
+	await asyncBotWalkTo(droppedItems[0].position);
+
+	await new Promise((resolve) => {
+		let checkForBLock = () => {
+			let _droppedItems = findBlockEntities(checkerFunction);
+			if (!_droppedItems.find(_block => _block.id === droppedItems[0].id))
+				resolve();
+
+			setTimeout(checkForBLock, 400);
+		};
+		checkForBLock();
+	});
+	
+	return collectBlock(checkerFunction);
+}
+
+/**
+ * 
+ * It will find all the entities that match your function
+ * 
+ * @param {function} checkerFunction 
+ */
+function findBlockEntities(checkerFunction) {
+	let matchedEntities = [];
+	for (let [index, entity] of Object.entries(bot.entities)) {
+		// Only check for dropped items
+		if (entity.type !== 'object' || entity.name !== 'item') continue;
+		// Check if the metadata is available
+		if (!entity.metadata) continue;
+		// Make sure we can access the block ID
+		if (!entity.metadata[entity.metadata.length - 1] || !entity.metadata[entity.metadata.length - 1].blockId) continue;
+		// Make sure it's not in the air
+		if (!entity.onGround) continue;
+		// Check if the blockId is a valid block
+		let blockId = entity.metadata[entity.metadata.length - 1].blockId;
+		if (!mcData.blocks[blockId]) continue;
+
+		// Now we succesfully identified the dropped block
+		let block = mcData.blocks[blockId];
+
+		if (checkerFunction(block)) {
+			matchedEntities.push(entity);
+		}
+		
+	}
+	return matchedEntities;
 }
 
 
@@ -111,7 +183,7 @@ async function checkChestFor(chestPosition, blockName) {
 	if (chestBlock.name !== "chest") return console.warn(`Specified block is not a chest type (found ${chestBlock.name})`);
 
 	// We walk to the chest (to be able to open it)
-	await asyncBotWalkTo(chestPosition);
+	await asyncBotLookTo(chestPosition);
 
 
 	// Bot Should be at the chest
@@ -171,8 +243,11 @@ async function gatherBlock(blockName, quantity) {
 	
 	// Once the tree has been cut down, we check the rest of the bloks to see if they remain (they may have been cut down as part of the tree)
 	while (blocksPos[0]) {
+
+		// TODO: If the bot runs out of scaffolding blocks it should try to gather them (or it should be able to use the gathered blocks as sacaffolding?)
+		// TODO: Make the bot plant the trees
 		// We send the bot the block we are trying to find
-		await asyncBotWalkTo(blocksPos[0]);
+		await asyncBotLookTo(blocksPos[0]);
 		await cutDownTree(blocksPos[0]);
 
 		let targetBlockQuantity = 0;
@@ -239,7 +314,7 @@ async function cutDownTree(treePos) {
 		// Prevent the bot from mining anything that's not a log
 		if (logToMine.name.includes("log")) {
 			if (!bot.canDigBlock(logToMine)) {
-				await asyncBotWalkTo(logToMine.position);
+				await asyncBotLookTo(logToMine.position);
 			}
 			await bot.dig(logToMine);
 		}
@@ -268,40 +343,17 @@ async function cutDownTree(treePos) {
 		treeLeaves.splice(0, 1);
 		if (!nextLeave.name.includes("leaves")) continue;
 		if (!bot.canDigBlock(nextLeave)) {
-			await asyncBotWalkTo(nextLeave.position);
+			await asyncBotLookTo(nextLeave.position);
 		}
 		await bot.dig(nextLeave);
 	}
 	
 	bot.chat("All leaves are done!");
-}
-
-
-async function asyncBotWalkTo( blockToWalkTo ) {
-	if (!blockToWalkTo) return console.warn("No coordinates to walk to");
-
-
-	let defaultMove              = new Movements(bot, mcData);
-		defaultMove.canDig       = true;
-		defaultMove.allowParkour = true;
-	bot.pathfinder.setMovements(defaultMove);
-	bot.pathfinder.setGoal(new GoalLookAtBlock(blockToWalkTo, bot.world, {reach: 5, entityHeight: 1}));
 	
-	return new Promise((resolve, reject) => {
-		bot.once("goal_reached", resolve);
-	});
-}
-
-
-
-function getBlocks(blockNames, count) {
-	let blocksToFind = [];
-	if ( Array.isArray(blockNames) ) {
-		blockNames.map(blockName => blocksToFind.push(mcData.blocksByName[blockName].id));
-	} else {
-		blocksToFind = [mcData.blocksByName[blockNames].id];
-	}
-	return bot.findBlocks({matching: blocksToFind,  maxDistance: SEARCH_DISTANCE, count: count});	
+	
+	bot.chat("Gathering entities now");
+	let checkerFunction = (block) => block.name === "sapling" || block.name === "log";
+	await collectBlock(checkerFunction);
 }
 
 bot.on('goal_reached', () => { 
@@ -317,95 +369,3 @@ bot.on('path_reset', (update) => {
 bot.on('path_stop', () => { 
 	console.log("Path stop " + " --> " + bot.currentCommand);
 });
-
-
-
-/**
- * 
- * Makes the bot go in circles (a spiral) until the desired blocks are found
- * 
- * @param {array} blockArray Array of block names we're searching for
- * @param {function} onFound Callback function for when we find the blocks
- * 
- */
- async function botRadialSearch(blockArray, onFound) {
-	
-	bot.currentStatus    = 'radialSearch';
-	bot.statusData.radialSearch = {
-		startingPoint: bot.entity.position,
-		searchingFor: blockArray,
-		onSuccess: onFound,
-	};
-	
-	let i = 0;
-	// The smaller the angle the smoother the circle
-	let rearchAngle = 5;
-	// The smaller the with the smaller the spilar shape 
-	let searchWidth = 2;
-	// Infite loop breaking point
-	var foundBlock = false;
-	
-	// While the bot moves we want to check periodicaly if we can detect the new block
-	let lookForBlock = () => {
-		// Here the bot is already at the new position, we check for the blocks that we are searching for
-		bot.statusData.radialSearch.searchingFor.map(targetBlockName => {
-			let block = getBlocks(targetBlockName, 1);
-			if (block.length === 1) {
-				foundBlock = true;
-			}
-		});
-	};
-	// Check the blocks periodicaly
-	let searchInterval = setInterval(lookForBlock, 500);
-	do {
-		// Taken straight of: https://codepen.io/Twinbee/pen/gvMNJY
-		// This will make an spiral that increments with each loop
-		newAngle = (rearchAngle/10) * i;
-		x = (bot.statusData.radialSearch.startingPoint.x) + (searchWidth * newAngle) * Math.sin(newAngle);
-		z = (bot.statusData.radialSearch.startingPoint.z) + (searchWidth * newAngle) * Math.cos(newAngle);
-
-		// We create a new movement goal that does not care about what's in the middle
-		let defaultMove          = new Movements(bot, mcData);
-			defaultMove.canDig       = true;
-			defaultMove.allowParkour = true;
-		bot.pathfinder.setMovements(defaultMove);
-		// The goal does not care about the height of the path taken
-		bot.pathfinder.setGoal(new GoalXZ(x, z));
-
-
-		// This promise will allow us to iteare again once the bot reaches it's destination
-		let botIsReadyForNewMovement = () => {
-			return new Promise((resolve, reject)=>{
-				bot.once('goal_reached', resolve);
-			});
-		}
-		await botIsReadyForNewMovement();
-		
-		i++;
-	} while(!foundBlock);
-	// Stop checking for the blocks
-	clearInterval(searchInterval);
-	// Execute the callback function so the reason for the search to begin can start
-	bot.statusData.radialSearch.onSuccess();
-}
-
-
-let botGoToUser = async (username) => {
-	const target = bot.players[username]?.entity
-	if (!target) return bot.chat("I don't see you !");
-	
-	const defaultMove = new Movements(bot, mcData);
-	defaultMove.canDig = false;
-	const { x: playerX, y: playerY, z: playerZ } = target.position
-	
-	bot.pathfinder.setMovements(defaultMove);
-	bot.pathfinder.setGoal(new GoalNear(playerX, playerY, playerZ, 1))
-	
-	// This promise will allow us to iteare again once the bot reaches it's destination
-	let botReachedTheUser = () => {
-		return new Promise((resolve, reject)=>{
-			bot.once('goal_reached', resolve);
-		});
-	}
-	await botReachedTheUser();
-}
