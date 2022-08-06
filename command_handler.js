@@ -10,7 +10,7 @@ module.exports = class CommandHandler {
         
         this.botController = botController;
 
-        // Avoid catching by encapsulating!??
+        // Avoid catching by encapsulating!??  
         this.botController.bot.on("chat", (username, message)=> this.commandHandler(username, message))
         
         this.commandHistory = [];

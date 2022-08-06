@@ -2,7 +2,7 @@ const mineflayer                       = require('mineflayer');
 const { mineflayer: mineflayerViewer } = require('prismarine-viewer');
 const Vec3 = require('vec3').Vec3
 const CommandHandler                   = require("./command_handler.js");
-const McDataController                 = require("./mcData_controller.js");
+const McDataController                 = require("./classes/mcData_controller.js");
 const {pathfinder, Movements, goals: { GoalXZ, GoalNear, GoalLookAtBlock, GoalBlock } } = require('mineflayer-pathfinder');
 
 const SEARCH_DISTANCE = 100;
