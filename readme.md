@@ -1,4 +1,4 @@
-# Minecraft autonomus bot
+# Minecraft autonomous bot
 
 ## TODO
  - Requirements on tasks (or should they be on Goals as well?). It may be a good idia for requirements to be on all of the classes (to reduce the chance of the bot getting stuck).
