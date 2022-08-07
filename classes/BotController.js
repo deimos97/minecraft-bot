@@ -1,7 +1,8 @@
 const mineflayer        = require('mineflayer');
 const {pathfinder}      = require('mineflayer-pathfinder');
 const PlayIdleAnimation = require("./goals/PlayIdleAnimation.js");
-
+const CommandController = require("./CommandController.js");
+const goals             = require("./goals/GoalLoader.js");
 
 module.exports = class BotController {
     
@@ -16,7 +17,8 @@ module.exports = class BotController {
             this.beginLoop();
         });
 
-        this.goals = [];
+        this.goalsQueue = [
+        ];
 
     }
 
@@ -26,27 +28,43 @@ module.exports = class BotController {
      * 
      */
     beginLoop() {
+        // We use the commandhandler to handle all user input
+        this.commandController = new CommandController(this);
+        // TODO: Test goal queue and figure out a way to prioritize taks and what not
+        // this.goalsQueue.push({goal: new PlayIdleAnimation(this.bot)});
+        // this.goalsQueue.push({goal: new PlayIdleAnimation(this.bot)});
+        // this.goalsQueue.push({goal: new PlayIdleAnimation(this.bot)});
+        // this.goalsQueue.push({goal: new PlayIdleAnimation(this.bot)});
+        // this.goalsQueue.push({goal: new PlayIdleAnimation(this.bot)});
+        // this.goalsQueue.push({goal: new PlayIdleAnimation(this.bot)});
         this.loop();
+    }
+
+    newUserTask(goal, params) {
+        this.goalsQueue.push({goal: new goals[goal](this.bot), params: params});
     }
 
     async loop() {
         // Bot is thinking of the next task
         // TODO: Finding the next taks to perform may be a little bit more complex
-        if (this.goals.length === 0) {
+        if (this.goalsQueue.length === 0) {
             this.botNewGoal();
             return this.loop();
         }
 
-        await this.goals[0].play();
+        let goalToPerform = 0;
+
+        if(!await this.goalsQueue[goalToPerform].goal.play(this.goalsQueue[goalToPerform].params ?? [])) {
+            // TODO: What to do when a goal fails? Move on to the next one?
+        }
+        this.goalsQueue.splice(goalToPerform, 1);
 
         this.loop();
     }
 
     // TODO: This will be assumed by our "role" Class (miners and builders will have different objetives)
     botNewGoal() {
-        this.goals.push(new PlayIdleAnimation(this.bot));
+        this.goalsQueue.push({goal: new PlayIdleAnimation(this.bot)});
     }
-
-
 
 }

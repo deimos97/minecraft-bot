@@ -36,17 +36,6 @@ module.exports = class BotController {
         this.botDebug();
     }
 
-    get masters() {
-        return [
-            "Varela04"
-        ]
-    }
-    
-    get commandPrefix() {
-        return "bot";
-    }
-
-
     async botFindBlock(blockName, quantity) {
 
         // Make sure it's a real block
@@ -208,26 +197,6 @@ module.exports = class BotController {
         });
     }
     
-    async botGoToUser (username) {
-
-        const target = this.bot.players[username]?.entity
-        if (!target) return this.bot.chat("I don't see you !");
-        
-        const defaultMove = new Movements(this.bot, this.mcData);
-        defaultMove.canDig = false;
-        const { x: playerX, y: playerY, z: playerZ } = target.position
-        
-        this.bot.pathfinder.setMovements(defaultMove);
-        this.bot.pathfinder.setGoal(new GoalNear(playerX, playerY, playerZ, 1))
-        
-        // This promise will allow us to iteare again once the bot reaches it's destination
-        let botReachedTheUser = () => {
-            return new Promise((resolve, reject)=>{
-                this.bot.once('goal_reached', resolve);
-            });
-        }
-        await botReachedTheUser();
-    }
 
     async checkChestFor(chestPosition, blockName) {
         let chestBlock = this.bot.blockAt(chestPosition);

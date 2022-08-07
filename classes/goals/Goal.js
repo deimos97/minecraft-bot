@@ -8,6 +8,7 @@ const Idle = require("./../routines/Idle.js");
 module.exports = class Goal extends BindBotBase {
     constructor(bot) {
         super(bot);
+        this.currentRoutine = 0;
     }
 
     getRoutines() {
@@ -16,19 +17,50 @@ module.exports = class Goal extends BindBotBase {
         ];
     }
 
+    get description() {
+        return `No description provided. Try calling it to see what it does!`;
+    }
+
     getCurrentRoutine() {
-        if (this.currentRoutine === undefined)
-            this.currentRoutine = 0;
         return this.getRoutines()[this.currentRoutine];
     }
+    
+    advanceToNextRoutine() {
+        let allRoutines = this.getRoutines();
+        if (this.currentRoutine >= (allRoutines.length - 1)) {
+            return false;
+        }
+        this.currentRoutine++; 
+        return true;
+    }
+
+    getHelp() {
+        return `No help provided for the command ${this.constructor.name}`;
+    }
+
+    getProcessParams(params) {
+        return params;
+    }
+
 
     /**
      * TODO: Better name??? Basicaly we are trying to express the Goal advancing on its "goal"
      * 
      */
-    async play() {
+    async play(params) {
         let currentRoutine = this.getCurrentRoutine();
-        await currentRoutine.play();
+        
+        if (params.userCommands && params.userCommands[0] && params.userCommands[0].toLowerCase() === "help" )
+            return this.bot.chat(this.getHelp());
+
+        if (!await currentRoutine.play(this.getProcessParams(params))) {
+            // TODO: Figure out what to do if our routine fails!
+        }
+        
+        if (!this.advanceToNextRoutine()) {
+            return true;
+        }
+        return await this.play(params);
     }
 
 }
