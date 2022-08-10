@@ -2,6 +2,7 @@
 
 ## TODO
  - Requirements on tasks (or should they be on Goals as well?). It may be a good idia for requirements to be on all of the classes (to reduce the chance of the bot getting stuck).
+ -- KEEP WORKING ON THE `GatherResource` Routine getting called from the bot controller thanks to the requirements structure
  - Take current behaviour of chopping tree and collecting it's items and turn it into a goal.
  - Make a comprehensive set up process and explaint it here
 
