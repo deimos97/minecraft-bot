@@ -87,7 +87,7 @@ const goals = require("./goals/GoalLoader.js");
             calledBy:     username,
             userCommands: commands,
         };
-        this.botController.newUserTask(this.commandToGoal[commandFnc], funcParams);
+        this.botController.newUserGoal(this.commandToGoal[commandFnc], funcParams);
     }
     
 }
