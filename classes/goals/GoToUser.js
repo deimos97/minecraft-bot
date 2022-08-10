@@ -1,11 +1,17 @@
-const Goal           = require("./Goal.js");
+const Goal            = require("./Goal.js");
 const GoToUserRoutine = require("./../routines/GoToUser.js");
 
 module.exports = class GoToUser extends Goal {
     get description() {
-        return `Commands: \r
+        return `Parameter: \r
                     1 (optional) - %username% Name of the user you want to move the bot to. \r
                 Once you call it the bot will come to you or the specified user.`;
+    }
+
+    get requirements() {
+        return [
+            {value: "dirt", quantity: "64"},
+        ];
     }
 
     getHelp() {

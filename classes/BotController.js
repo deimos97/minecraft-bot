@@ -3,6 +3,7 @@ const {pathfinder}      = require('mineflayer-pathfinder');
 const PlayIdleAnimation = require("./goals/PlayIdleAnimation.js");
 const CommandController = require("./CommandController.js");
 const goals             = require("./goals/GoalLoader.js");
+const Requirements      = require('./Requirements.js');
 
 module.exports = class BotController {
     
@@ -40,7 +41,7 @@ module.exports = class BotController {
         this.loop();
     }
 
-    newUserTask(goal, params) {
+    newUserGoal(goal, params) {
         this.goalsQueue.push({goal: new goals[goal](this.bot), params: params});
     }
 
@@ -53,6 +54,19 @@ module.exports = class BotController {
         }
 
         let goalToPerform = 0;
+
+        // First we'll check the requirements for said goal
+        for (let requirement of this.goalsQueue[goalToPerform].goal.requirements) {
+            // If the bot meets the requirement we move on to the next one
+            if (Requirements.botMeetsRequirement(this.bot, requirement)) continue;
+    
+            // Otherwise we call the Goal for the requirement so the the bot meets it
+            let goalAndParams = Requirements.getGoalForRequirement(requirement);
+            let requirementGoal = new goalAndParams.goal(this.bot);
+            if (!await requirementGoal.play(goalAndParams.params ?? [])) {
+                // TODO: What happens if a requirement fails?
+            }
+        }
 
         if(!await this.goalsQueue[goalToPerform].goal.play(this.goalsQueue[goalToPerform].params ?? [])) {
             // TODO: What to do when a goal fails? Move on to the next one?
