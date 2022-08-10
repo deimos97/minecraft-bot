@@ -17,6 +17,10 @@ module.exports = class Goal extends BindBotBase {
         ];
     }
 
+    get requirements() {
+        return [];
+    }
+
     get description() {
         return `No description provided. Try calling it to see what it does!`;
     }
